@@ -31,6 +31,21 @@ module.exports = function(grunt) {
     return name;
   };
 
+  var patchProto = function(Class, extensions) {
+    var proto = Class.prototype;
+    Class.prototype = Object.create(proto);
+
+    for (var name in extensions) {
+      if (typeof proto[name] !== "undefined") {
+        grunt.log.warn('Overriding "' + name + '" prototype method!');
+      }
+
+      Class.prototype[name] = extensions[name];
+    }
+
+    return proto;
+  }
+
   grunt.registerMultiTask('handlebars', 'Compile handlebars templates and partials.', function() {
     var options = this.options({
       namespace: 'JST',
@@ -39,7 +54,9 @@ module.exports = function(grunt) {
       amd: false,
       commonjs: false,
       knownHelpers: [],
-      knownHelpersOnly: false
+      knownHelpersOnly: false,
+      compilerExt: {},
+      jsCompilerExt: {}
     });
     grunt.verbose.writeflags(options, 'Options');
 
@@ -63,6 +80,10 @@ module.exports = function(grunt) {
     // assign compiler options
     var compilerOptions = options.compilerOptions || {};
 
+    var Handlebars = require('handlebars');
+    var compilerProto = patchProto(Handlebars.Compiler, options.compilerExt);
+    var jsCompilerProto = patchProto(Handlebars.JavaScriptCompiler, options.jsCompilerExt);
+
     this.files.forEach(function(f) {
       var partials = [];
       var templates = [];
@@ -79,7 +100,6 @@ module.exports = function(grunt) {
       })
       .forEach(function(filepath) {
         var src = processContent(grunt.file.read(filepath));
-        var Handlebars = require('handlebars');
         var ast, compiled, filename;
         try {
           // parse the handlebars template into it's AST
@@ -165,6 +185,8 @@ module.exports = function(grunt) {
       }
     });
 
+    Handlebars.Compiler.prototype = compilerProto;
+    Handlebars.JavaScriptCompiler.prototype = jsCompilerProto;
   });
 
 };
